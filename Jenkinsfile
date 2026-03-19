@@ -32,25 +32,29 @@ pipeline {
         }
  
         stage('Validate Deployment') {
-         steps {
-          bat """
-          "%SF_CLI%" deploy metadata ^
-          --target-org devopscicddemo ^
-          --dry-run ^
-          --wait 10
-          """
+    steps {
+        bat """
+        "%SF_CLI%" project deploy start ^
+        --source-dir force-app ^
+        --target-org devopscicddemo ^
+        --dry-run ^
+        --test-level NoTestRun ^
+        --wait 10
+        """
     }
 }
  
         stage('Deploy to Org') {
-            steps {
-                bat """
-                "%SF_CLI%" deploy metadata ^
-                --target-org devopscicddemo ^
-                --wait 10
-                """
-            }
-        }
+    steps {
+        bat """
+        "%SF_CLI%" project deploy start ^
+        --source-dir force-app ^
+        --target-org devopscicddemo ^
+        --test-level NoTestRun ^
+        --wait 10
+        """
+    }
+}
  
         stage('Post Deployment Check') {
         steps {
