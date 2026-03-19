@@ -1,0 +1,21 @@
+<template>
+    <lightning-card title="Web Opportunities">
+        
+        <div class="slds-p-around_small">
+            <lightning-input
+                type="search"
+                label="Search by Opportunity Name"
+                value={searchKey}
+                onchange={handleSearch}>
+            </lightning-input>
+        </div>
+
+        
+        <lightning-datatable
+            key-field="Id"
+            data={filteredOpportunities}
+            columns={columns}
+            hide-checkbox-column="true">
+        </lightning-datatable>
+    </lightning-card>
+</template>
