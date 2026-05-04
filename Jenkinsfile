@@ -14,23 +14,7 @@ pipeline {
 
     stages {
 
-        stage('Skip CI check') {
-            steps {
-                script {
-                    def msg = bat(
-                        script: '@git log -1 --pretty=%%B',
-                        returnStdout: true
-                    ).trim()
-                    echo "Last commit message: ${msg}"
-                    if (msg.contains('[skip ci]')) {
-                        currentBuild.result = 'NOT_BUILT'
-                        error('CI bot commit — skipping pipeline')
-                    }
-                }
-            }
-        }
-
-
+        
 stage('PR Approval Check') {
     steps {
         script {
