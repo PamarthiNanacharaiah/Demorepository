@@ -1,97 +1,142 @@
 pipeline {
     agent any
- 
+
+    triggers {
+        pollSCM('H/1 * * * *')
+    }
+
     environment {
         SF_USERNAME     = credentials('SF_USERNAME')
         SF_CONSUMER_KEY = credentials('SF_CONSUMER_KEY')
         SF_CLI          = 'C:/Program Files/sf/bin/sf.cmd'
+        GITHUB_REPO     = 'PamarthiNanacharaiah/Demorepository'
     }
- 
+
     stages {
 
-        stage('Clean Workspace') {
+        
+stage('PR Approval Check') {
     steps {
-        cleanWs()
+        script {
+            def commitMsg = bat(
+                script: '@git log -1 --pretty=%%B',
+                returnStdout: true
+            ).trim()
+
+            echo "Commit message: ${commitMsg}"
+
+            // Extract PR number — discard Matcher immediately (not serializable)
+            def prNumber = null
+            def matcher = commitMsg =~ /Merge pull request #(\d+)/
+            if (matcher.find()) {
+                prNumber = matcher.group(1)
+            }
+            matcher = null  // must discard — Matcher is not serializable
+
+            if (!prNumber) {
+                echo "Not a PR merge commit — skipping approval check"
+                return
+            }
+
+            echo "Detected PR #${prNumber} — checking GitHub approval..."
+
+            def approved = false
+
+            withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
+
+                // Write headers to temp file to avoid Windows token expansion issues
+                bat """
+                @echo off
+                echo -H "Authorization: token %GH_TOKEN%" > "%TEMP%\\curl_headers.txt"
+                echo -H "Accept: application/vnd.github.v3+json" >> "%TEMP%\\curl_headers.txt"
+                """
+
+                def response = bat(
+                    script: """
+                    @curl -s --config "%TEMP%\\curl_headers.txt" ^
+                    https://api.github.com/repos/%GITHUB_REPO%/pulls/${prNumber}/reviews
+                    """,
+                    returnStdout: true
+                ).trim()
+
+                echo "GitHub API response received"
+
+                // FIX: use JsonSlurper instead of readJSON — no plugin required
+                def slurper = new groovy.json.JsonSlurper()
+                def reviews = slurper.parseText(response)
+
+                echo "Total reviews: ${reviews.size()}"
+
+                for (def review : reviews) {
+                    echo "  ${review.user.login} -> ${review.state}"
+                    if (review.state == 'APPROVED') {
+                        approved = true
+                    }
+                }
+
+                // Must discard slurper — JsonSlurper is not serializable either
+                slurper = null
+            }
+
+            if (!approved) {
+                currentBuild.result = 'ABORTED'
+                error("PR #${prNumber} is NOT approved — blocking deploy")
+            }
+
+            echo "PR #${prNumber} APPROVED — proceeding to deploy"
+        }
     }
 }
- 
-        stage('Checkout Code') {
+
+
+        
+
+        stage('Code Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/PamarthiNanacharaiah/Demorepository.git'
+                checkout scm
             }
         }
- 
-        stage('Authenticate Salesforce') {
+
+        stage('Authorization to Org') {
             steps {
                 withCredentials([file(credentialsId: 'sfdc-jwt-key', variable: 'JWT_KEY_FILE')]) {
                     bat """
+                    @echo off
                     "%SF_CLI%" org login jwt ^
                     --client-id %SF_CONSUMER_KEY% ^
                     --jwt-key-file "%JWT_KEY_FILE%" ^
                     --username %SF_USERNAME% ^
                     --instance-url https://login.salesforce.com ^
-                    --alias devopscicddemo
+                    --alias projectdemosfdc
                     """
                 }
             }
         }
- 
-        stage('Validate Deployment') {
-    steps {
-        bat """
-        "%SF_CLI%" project deploy start ^
-        --source-dir force-app ^
-        --target-org devopscicddemo ^
-        --dry-run ^
-        --test-level NoTestRun ^
-        --wait 10
-        """
-    }
-}
- 
+
         stage('Deploy to Org') {
-    steps {
-        bat """
-        "%SF_CLI%" project deploy start ^
-        --source-dir force-app ^
-        --target-org devopscicddemo ^
-        --test-level NoTestRun ^
-        --wait 10
-        """
+            steps {
+                bat """
+                @echo off
+                "%SF_CLI%" deploy metadata ^
+                --target-org projectdemosfdc ^
+                --wait 10
+                """
+            }
+        }
     }
-}
- 
-        stage('Post Deployment Check') {
-        steps {
-        bat """
-        "%SF_CLI%" org display ^
-        --target-org devopscicddemo
-        """
-    }
-}
- 
-stage('Backup Metadata') {
-    steps {
-        bat """
-        "%SF_CLI%" retrieve metadata ^
-        --target-org devopscicddemo ^
-        --manifest manifest/package.xml ^
-        --wait 10
-        """
-    }
-}
- 
- 
- 
-    }
- 
+
     post {
         success {
-            echo '✅ Salesforce deployment and tests completed successfully'
+            echo "Deployment successful to Salesforce"
         }
         failure {
-            echo '❌ Pipeline failed. Check logs above for details.'
+            echo "Deployment failed — check console output"
+        }
+        aborted {
+            echo "Pipeline aborted — PR #${env.GIT_COMMIT} was not approved"
+        }
+        always {
+            cleanWs()
         }
     }
 }
