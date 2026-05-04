@@ -6,10 +6,10 @@ pipeline {
     }
 
     environment {
-        SF_USERNAME     = credentials('sfdc_user')
-        SF_CONSUMER_KEY = credentials('consumer_key')
+        SF_USERNAME     = credentials('SF_USERNAME')
+        SF_CONSUMER_KEY = credentials('SF_CONSUMER_KEY')
         SF_CLI          = 'C:/Program Files/sf/bin/sf.cmd'
-        GITHUB_REPO     = 'Dharsaikat13/SFDC--DemoProject'
+        GITHUB_REPO     = 'PamarthiNanacharaiah/Demorepository'
     }
 
     stages {
@@ -115,7 +115,7 @@ stage('PR Approval Check') {
 
         stage('Authorization to Org') {
             steps {
-                withCredentials([file(credentialsId: 'jwt_key', variable: 'JWT_KEY_FILE')]) {
+                withCredentials([file(credentialsId: 'sfdc-jwt-key', variable: 'JWT_KEY_FILE')]) {
                     bat """
                     @echo off
                     "%SF_CLI%" org login jwt ^
