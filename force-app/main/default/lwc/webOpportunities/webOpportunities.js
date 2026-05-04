@@ -2,7 +2,7 @@ import { LightningElement, wire, track } from 'lwc';
 import getOpportunities from '@salesforce/apex/webOpportunitiesController.getOpportunities';
 
 const columns = [
-    { label: 'Opportunity', fieldName: 'Name', type: 'text' },
+    { label: 'Opportunity Name', fieldName: 'Name', type: 'text' },
     { label: 'Stage Name', fieldName: 'StageName', type: 'text' },
     { label: 'Close Date', fieldName: 'CloseDate', type: 'date' },
     { label: 'Amount', fieldName: 'Amount', type: 'currency' }
