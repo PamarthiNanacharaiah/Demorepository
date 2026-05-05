@@ -35,10 +35,9 @@ pipeline {
                     ).trim()
 
                     commitMsg = commitMsg.readLines().join(' ').trim()
-
                     echo "Commit message: ${commitMsg}"
 
-                    // ✅ Extract PR number (FIXED REGEX)
+                    // ✅ Extract PR number
                     def prNumber = null
                     def matcher = commitMsg =~ /#(\d+)/
                     if (matcher.find()) {
@@ -57,18 +56,14 @@ pipeline {
 
                     withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
 
-                        // ✅ PowerShell JSON parsing (NO Jenkins approval required)
-                       def result = bat(
-    script: """
-    @echo off
-    powershell -Command ^
-    "\$headers = @{Authorization='token %GH_TOKEN%'}; ^
-    \$response = Invoke-RestMethod -Uri 'https://api.github.com/repos/%GITHUB_REPO%/pulls/${prNumber}/reviews' -Headers \$headers; ^
-    \$approvedUsers = \$response | Where-Object { \$_.state -eq 'APPROVED' } | Select-Object -ExpandProperty user | Select-Object -ExpandProperty login; ^
-    \$approvedUsers -join ','"
-    """,
-    returnStdout: true
-).trim()
+                        // ✅ Clean single-line PowerShell (no ^, no errors)
+                        def result = bat(
+                            script: """
+                            @echo off
+                            powershell -NoProfile -Command "\$h=@{Authorization='token %GH_TOKEN%'}; \$r=Invoke-RestMethod -Uri 'https://api.github.com/repos/%GITHUB_REPO%/pulls/${prNumber}/reviews' -Headers \$h; (\$r | Where-Object { \$_.state -eq 'APPROVED' } | ForEach-Object { \$_.user.login }) -join ','"
+                            """,
+                            returnStdout: true
+                        ).trim()
 
                         if (result) {
                             approved = true
