@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     triggers {
-        pollSCM('H/1 * * * *')
+        pollSCM('H/2 * * * *')
     }
 
     environment {
@@ -10,87 +10,58 @@ pipeline {
         SF_CONSUMER_KEY = credentials('SF_CONSUMER_KEY')
         SF_CLI          = 'C:/Program Files/sf/bin/sf.cmd'
         GITHUB_REPO     = 'PamarthiNanacharaiah/Demorepository'
-        @"C:\\Users\\nancharaiah.pamarthi\\AppData\\Local\\Programs\\Git\\cmd\\git.exe" log -1 --pretty=%%B
     }
 
     stages {
 
-        
-stage('PR Approval Check') {
-    steps {
-        script {
-            def commitMsg = bat(
-                script: '@git log -1 --pretty=%%B',
-                returnStdout: true
-            ).trim()
-
-            echo "Commit message: ${commitMsg}"
-
-            // Extract PR number — discard Matcher immediately (not serializable)
-            def prNumber = null
-            def matcher = commitMsg =~ /Merge pull request #(\d+)/
-            if (matcher.find()) {
-                prNumber = matcher.group(1)
+        stage('PR Approval Check') {
+            when {
+                expression { return env.CHANGE_ID != null }
             }
-            matcher = null  // must discard — Matcher is not serializable
+            steps {
+                script {
 
-            if (!prNumber) {
-                echo "Not a PR merge commit — skipping approval check"
-                return
-            }
+                    def prNumber = env.CHANGE_ID
+                    echo "Checking approval for PR #${prNumber}"
 
-            echo "Detected PR #${prNumber} — checking GitHub approval..."
+                    def approved = false
 
-            def approved = false
+                    withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
 
-            withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
+                        // Call GitHub API
+                        def response = bat(
+                            script: """
+                            @echo off
+                            curl -s -H "Authorization: token %GH_TOKEN%" ^
+                            -H "Accept: application/vnd.github.v3+json" ^
+                            https://api.github.com/repos/%GITHUB_REPO%/pulls/${prNumber}/reviews
+                            """,
+                            returnStdout: true
+                        ).trim()
 
-                // Write headers to temp file to avoid Windows token expansion issues
-                bat """
-                @echo off
-                echo -H "Authorization: token %GH_TOKEN%" > "%TEMP%\\curl_headers.txt"
-                echo -H "Accept: application/vnd.github.v3+json" >> "%TEMP%\\curl_headers.txt"
-                """
+                        echo "GitHub response received"
 
-                def response = bat(
-                    script: """
-                    @curl -s --config "%TEMP%\\curl_headers.txt" ^
-                    https://api.github.com/repos/%GITHUB_REPO%/pulls/${prNumber}/reviews
-                    """,
-                    returnStdout: true
-                ).trim()
+                        def slurper = new groovy.json.JsonSlurperClassic()
+                        def reviews = slurper.parseText(response)
 
-                echo "GitHub API response received"
+                        echo "Total reviews: ${reviews.size()}"
 
-                // FIX: use JsonSlurper instead of readJSON — no plugin required
-                def slurper = new groovy.json.JsonSlurper()
-                def reviews = slurper.parseText(response)
-
-                echo "Total reviews: ${reviews.size()}"
-
-                for (def review : reviews) {
-                    echo "  ${review.user.login} -> ${review.state}"
-                    if (review.state == 'APPROVED') {
-                        approved = true
+                        for (def review in reviews) {
+                            echo "${review.user.login} -> ${review.state}"
+                            if (review.state == 'APPROVED') {
+                                approved = true
+                            }
+                        }
                     }
+
+                    if (!approved) {
+                        error("❌ PR #${prNumber} is NOT approved — stopping pipeline")
+                    }
+
+                    echo "✅ PR #${prNumber} approved — continuing"
                 }
-
-                // Must discard slurper — JsonSlurper is not serializable either
-                slurper = null
             }
-
-            if (!approved) {
-                currentBuild.result = 'ABORTED'
-                error("PR #${prNumber} is NOT approved — blocking deploy")
-            }
-
-            echo "PR #${prNumber} APPROVED — proceeding to deploy"
         }
-    }
-}
-
-
-        
 
         stage('Code Checkout') {
             steps {
@@ -98,7 +69,7 @@ stage('PR Approval Check') {
             }
         }
 
-        stage('Authorization to Org') {
+        stage('Authorize Salesforce') {
             steps {
                 withCredentials([file(credentialsId: 'sfdc-jwt-key', variable: 'JWT_KEY_FILE')]) {
                     bat """
@@ -114,7 +85,7 @@ stage('PR Approval Check') {
             }
         }
 
-        stage('Deploy to Org') {
+        stage('Deploy to Salesforce') {
             steps {
                 bat """
                 @echo off
@@ -128,13 +99,13 @@ stage('PR Approval Check') {
 
     post {
         success {
-            echo "Deployment successful to Salesforce"
+            echo "✅ Deployment successful"
         }
         failure {
-            echo "Deployment failed — check console output"
+            echo "❌ Deployment failed — check logs"
         }
         aborted {
-            echo "Pipeline aborted — PR #${env.GIT_COMMIT} was not approved"
+            echo "⚠️ Pipeline aborted"
         }
         always {
             cleanWs()
