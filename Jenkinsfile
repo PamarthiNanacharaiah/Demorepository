@@ -41,7 +41,7 @@ pipeline {
 
                     // ✅ Extract PR number
                     def prNumber = null
-                    def matcher = commitMsg =~ /#(\\d+)/
+                    def matcher = commitMsg =~ /#(\d+)/
                     if (matcher.find()) {
                         prNumber = matcher.group(1)
                     }
