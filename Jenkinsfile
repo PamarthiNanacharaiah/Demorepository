@@ -10,6 +10,7 @@ pipeline {
         SF_CONSUMER_KEY = credentials('SF_CONSUMER_KEY')
         SF_CLI          = 'C:/Program Files/sf/bin/sf.cmd'
         GITHUB_REPO     = 'PamarthiNanacharaiah/Demorepository'
+        @"C:\\Users\\nancharaiah.pamarthi\\AppData\\Local\\Programs\\Git\\cmd\\git.exe" log -1 --pretty=%%B
     }
 
     stages {
