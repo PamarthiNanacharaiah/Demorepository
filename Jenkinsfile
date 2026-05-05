@@ -25,10 +25,10 @@ pipeline {
                     echo "Checking approval for PR #${prNumber}"
 
                     def approved = false
+                    def approvers = [] as Set
 
                     withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
 
-                        // Call GitHub API
                         def response = bat(
                             script: """
                             @echo off
@@ -48,8 +48,10 @@ pipeline {
 
                         for (def review in reviews) {
                             echo "${review.user.login} -> ${review.state}"
+
                             if (review.state == 'APPROVED') {
                                 approved = true
+                                approvers.add(review.user.login)
                             }
                         }
                     }
@@ -58,7 +60,7 @@ pipeline {
                         error("❌ PR #${prNumber} is NOT approved — stopping pipeline")
                     }
 
-                    echo "✅ PR #${prNumber} approved — continuing"
+                    echo "✅ PR #${prNumber} approved by: ${approvers.join(', ')}"
                 }
             }
         }
