@@ -3,7 +3,7 @@ import getOpportunities from '@salesforce/apex/webOpportunitiesController.getOpp
 
 const columns = [
     { label: 'Opportunity Name Test', fieldName: 'Name', type: 'text' },
-    { label: 'Stage Name', fieldName: 'StageName', type: 'text' },
+    { label: 'Stage Name Test', fieldName: 'StageName', type: 'text' },
     { label: 'Close Date', fieldName: 'CloseDate', type: 'date' },
     { label: 'Amount', fieldName: 'Amount', type: 'currency' }
 ];
