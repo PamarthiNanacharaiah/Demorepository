@@ -58,17 +58,17 @@ pipeline {
                     withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
 
                         // ✅ PowerShell JSON parsing (NO Jenkins approval required)
-                        def result = bat(
-                            script: """
-                            @echo off
-                            powershell -Command ^
-                            "$headers = @{Authorization='token %GH_TOKEN%'}; ^
-                            $response = Invoke-RestMethod -Uri 'https://api.github.com/repos/%GITHUB_REPO%/pulls/${prNumber}/reviews' -Headers $headers; ^
-                            $approvedUsers = $response | Where-Object { $_.state -eq 'APPROVED' } | Select-Object -ExpandProperty user | Select-Object -ExpandProperty login; ^
-                            $approvedUsers -join ','"
-                            """,
-                            returnStdout: true
-                        ).trim()
+                       def result = bat(
+    script: """
+    @echo off
+    powershell -Command ^
+    "\$headers = @{Authorization='token %GH_TOKEN%'}; ^
+    \$response = Invoke-RestMethod -Uri 'https://api.github.com/repos/%GITHUB_REPO%/pulls/${prNumber}/reviews' -Headers \$headers; ^
+    \$approvedUsers = \$response | Where-Object { \$_.state -eq 'APPROVED' } | Select-Object -ExpandProperty user | Select-Object -ExpandProperty login; ^
+    \$approvedUsers -join ','"
+    """,
+    returnStdout: true
+).trim()
 
                         if (result) {
                             approved = true
