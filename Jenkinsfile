@@ -11,13 +11,12 @@ pipeline {
         SF_CLI          = 'C:/Program Files/sf/bin/sf.cmd'
         GITHUB_REPO     = 'PamarthiNanacharaiah/Demorepository'
 
-        // ✅ FIX: Ensure git works in pipeline (VERY IMPORTANT)
+        // ✅ Ensure git works inside pipeline
         PATH = "C:\\Users\\nancharaiah.pamarthi\\AppData\\Local\\Programs\\Git\\cmd;${env.PATH}"
     }
 
     stages {
 
-        // 🔥 ONLY RUN ON MAIN AFTER MERGE
         stage('PR Approval Check') {
             when { branch 'main' }
 
@@ -26,21 +25,27 @@ pipeline {
 
                     echo "🔍 Running approval check on MAIN branch..."
 
-                    // ✅ Get latest commit message (merge commit)
+                    // ✅ FIXED: clean git output
                     def commitMsg = bat(
-                        script: 'git log -1 --pretty=%%B',
+                        script: """
+                        @echo off
+                        git log -1 --pretty=%%B
+                        """,
                         returnStdout: true
                     ).trim()
 
+                    // Clean formatting
+                    commitMsg = commitMsg.readLines().join(' ').trim()
+
                     echo "Commit message: ${commitMsg}"
 
-                    // ✅ Extract PR number safely
+                    // ✅ Extract PR number
                     def prNumber = null
                     def matcher = commitMsg =~ /#(\\d+)/
                     if (matcher.find()) {
                         prNumber = matcher.group(1)
                     }
-                    matcher = null   // avoid serialization issue
+                    matcher = null
 
                     if (!prNumber) {
                         error("❌ No PR number found — stopping deployment")
@@ -53,7 +58,7 @@ pipeline {
 
                     withCredentials([string(credentialsId: 'github-token', variable: 'GH_TOKEN')]) {
 
-                        // ✅ FIX: Avoid Windows token issues using headers file
+                        // ✅ Avoid Windows token issues
                         bat """
                         @echo off
                         echo -H "Authorization: token %GH_TOKEN%" > "%TEMP%\\headers.txt"
@@ -82,7 +87,7 @@ pipeline {
                             }
                         }
 
-                        slurper = null  // avoid serialization issue
+                        slurper = null
                     }
 
                     if (!approved) {
